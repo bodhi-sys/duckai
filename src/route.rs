@@ -90,7 +90,7 @@ pub async fn chat_completions(
         }
     }
     let token = token.ok_or_else(|| Error::BadRequest("cannot get token".to_string()))?;
-    body.compress_messages();
+    // body.compress_messages();
     let (_, response) = send_request(&state.client, token, &body).await?;
     Ok(response)
 }
@@ -100,7 +100,9 @@ async fn send_request(
     hash: String,
     body: &ChatRequest,
 ) -> Result<(String, Response)> {
-    // dbg!(&hash);
+    dbg!(&body);
+    let mut body = body.clone();
+    body.reasoning_effort = Some("minimal".into());
     let resp = client
         .post("https://duck.ai/duckchat/v1/chat")
         .header(header::ACCEPT, "text/event-stream")

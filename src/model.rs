@@ -1,7 +1,7 @@
 use serde::{Deserialize, Deserializer, Serialize};
 use typed_builder::TypedBuilder;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
     System,
@@ -10,7 +10,7 @@ pub enum Role {
 }
 
 // ==================== Request Body ====================
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ChatRequest {
     #[serde(deserialize_with = "deserialize_model")]
     pub model: String,
@@ -20,9 +20,11 @@ pub struct ChatRequest {
     pub stream: Option<bool>,
     #[serde(skip_serializing, default)]
     pub compressed: bool,
+    #[serde(rename="reasoningEffort", skip_serializing_if = "Option::is_none", default)]
+    pub reasoning_effort: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Default, TypedBuilder)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, TypedBuilder)]
 pub struct Message {
     #[builder(default, setter(into))]
     pub role: Option<Role>,
@@ -30,14 +32,14 @@ pub struct Message {
     pub content: Option<Content>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Content {
     Text(String),
     Vec(Vec<ContentItem>),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContentItem {
     #[serde(rename = "type")]
     r#type: String,
