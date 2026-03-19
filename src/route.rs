@@ -91,6 +91,7 @@ pub async fn chat_completions(
     }
     let token = token.ok_or_else(|| Error::BadRequest("cannot get token".to_string()))?;
     // body.compress_messages();
+    body.to_duck_chat_request();
     let (_, response) = send_request(&state.client, token, &body).await?;
     Ok(response)
 }

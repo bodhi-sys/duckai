@@ -97,7 +97,92 @@ pub fn compress_messages(messages: &[Message]) -> String {
     key
 }
 
+/// Extracts file sources from message content and returns (clean_content, Vec<(file_path, file_content)>)
+pub fn extract_file_sources(content: &str) -> (String, Vec<(String, String)>) {
+    use regex::Regex;
+
+    let file_pattern = Regex::new(r"============ FILE: (.+?) ============\n").unwrap();
+    let mut files = Vec::new();
+
+    // Find all file markers and extract content
+    let mut segments: Vec<(usize, usize, String, String)> = Vec::new(); // (start, end, filepath, content)
+
+    for cap in file_pattern.captures_iter(content) {
+        let full_match = cap.get(0).unwrap();
+        let file_path = cap.get(1).unwrap().as_str().to_string();
+        let start = full_match.end();
+
+        // Find the next file marker or end of string
+        let next_marker = file_pattern.find_at(content, start);
+        let end = next_marker.map(|m| m.start()).unwrap_or(content.len());
+
+        let file_content = content[start..end].trim().to_string();
+        segments.push((full_match.start(), end, file_path, file_content));
+    }
+
+    // Build clean content by removing file sections
+    let mut result = String::new();
+    let mut last_pos = 0;
+
+    for (start, end, file_path, file_content) in segments {
+        // Add content before this file marker
+        result.push_str(&content[last_pos..start]);
+        files.push((file_path, file_content));
+        last_pos = end;
+    }
+
+    // Add remaining content
+    result.push_str(&content[last_pos..]);
+
+    // Clean up extra whitespace
+    let result = result.trim().to_string();
+
+    (result, files)
+}
+
 impl ChatRequest {
+    pub fn to_duck_chat_request(&mut self) {
+        // Process messages to extract file sources
+        let mut processed_messages: Vec<Message> = Vec::new();
+
+        for msg in &self.messages {
+            if let Some(Content::Text(text)) = &msg.content {
+                let (clean_content, files) = extract_file_sources(text);
+
+                // Add file messages first (marked as assistant)
+                for (file_path, file_content) in files {
+                    let file_msg = format!(
+                        "============ FILE: {} ============\n{}",
+                        file_path, file_content
+                    );
+                    processed_messages.push(
+                        Message::builder()
+                            .role(Role::Assistant)
+                            .content(Content::Text(file_msg))
+                            .build(),
+                    );
+                }
+
+                // Add the clean user message (only if there's content left)
+                if !clean_content.is_empty() {
+                    processed_messages.push(
+                        Message::builder()
+                            .role(msg.role.clone().unwrap_or(Role::User))
+                            .content(Content::Text(clean_content))
+                            .build(),
+                    );
+                }
+            } else {
+                // Non-text content, keep as-is
+                processed_messages.push(msg.clone());
+            }
+        }
+
+        self.messages = processed_messages;
+
+        
+    }
+
     pub fn compress_messages(&mut self) {
         if self.messages.len() > 1 || self.compressed {
             self.messages = vec![
