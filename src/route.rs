@@ -109,6 +109,16 @@ async fn send_request(
         .header(header::ACCEPT, "text/event-stream")
         .header(header::ORIGIN, ORIGIN_API)
         .header(header::REFERER, ORIGIN_API)
+
+        // .header(header::CONTENT_TYPE, "application/json")
+        // .header("pragma", "no-cache")
+        .header("priority", "u=1, i")
+        .header("sec-fetch-dest", "empty")
+        .header("sec-fetch-mode", "cors")
+        .header("sec-fetch-site", "same-origin")
+        .header("x-fe-version", "serp_20250401_100419_ET-19d438eb199b2bf7c300")
+        .header(header::USER_AGENT, "Mozilla/5.0 (X11; Linux x86_64; rv:149.0) Gecko/20100101 Firefox/149.0")
+        
         .header("x-vqd-hash-1", hash)
         .json(&body)
         .send()
@@ -152,3 +162,72 @@ async fn load_token(client: &Client) -> Result<String> {
 
     Ok(request_hash)
 }
+
+
+// #[tokio::test]
+// async fn my_async_test() {
+//     let client = reqwest::Client::new();
+//     let hash = load_token(&client).await;
+//     dbg!(hash);
+
+//     // assert_eq!(value, 4);
+// }
+
+#[cfg(test)]
+mod live_tests {
+    use super::*;
+    use reqwest::Client;
+    use crate::model::{ChatRequest, Content, Message, Role};
+    use tokio::time::{timeout, Duration};
+
+    // Increase timeout for real network calls
+    const TEST_TIMEOUT_SECS: u64 = 30;
+
+    #[tokio::test]
+    async fn test_load_token_real() {
+        let client = Client::new();
+        let res = timeout(Duration::from_secs(TEST_TIMEOUT_SECS), load_token(&client)).await;
+        let hash = res.expect("timeout when calling load_token").expect("load_token failed");
+        assert!(!hash.is_empty(), "returned hash should not be empty");
+    }
+
+    #[tokio::test]
+    async fn test_send_request_real() {
+        // Build a minimal ChatRequest appropriate for the service.
+        let body = ChatRequest {
+            model: "gpt-5-mini".to_string(),
+            stream: Some(false),
+            messages: vec![
+                Message {
+                    role: Some(Role::User),
+                    content: Some(Content::Text("Hello from unit test".to_string())),
+                }
+            ],
+            compressed: false,
+            reasoning_effort: None,
+        };
+
+        let client = Client::new();
+
+        // first obtain token/hash
+        let token = timeout(Duration::from_secs(TEST_TIMEOUT_SECS), load_token(&client))
+            .await
+            .expect("timeout when calling load_token")
+            .expect("load_token failed");
+
+        // call send_request and ensure it returns a non-empty hash and a successful response
+        // let (returned_hash, response) =
+            let shit = timeout(Duration::from_secs(TEST_TIMEOUT_SECS), send_request(&client, token.clone(), &body))
+                .await;
+            dbg!(shit);
+                // .expect("timeout when calling send_request")
+                // .expect("send_request failed");
+
+        // assert!(!returned_hash.is_empty(), "returned hash should not be empty");
+        // Check response is an HTTP response with success-like status (ChatProcess may already translate; check by attempting to convert into a status if accessible)
+        // Here we rely on IntoResponse result being produced; ensure some bytes can be extracted by attempting to serialize to bytes.
+        // If `response` is axum::response::Response, we can at least assert headers exist.
+        // let _ = response.headers();
+    }
+}
+
